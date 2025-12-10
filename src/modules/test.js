@@ -446,6 +446,34 @@ export function setupMaterials(bot) {
     );
   });
 
+  bot.action("test_add_question", async (ctx) => {
+    ensureSession(ctx);
+    await safeCall(ctx.answerCbQuery(), "test.addQuestionExisting");
+
+    const state = ctx.session.currentTest;
+    if (!state) return;
+
+    // используем ID текущего теста
+    ctx.session.testId = state.testId;
+
+    // запускаем процесс добавления вопроса
+    ctx.session.addingQuestion = true;
+    ctx.session.expectingFrontText = true;
+    ctx.session.expectingFrontImage = false;
+    ctx.session.expectingBackText = false;
+    ctx.session.expectingBackImage = false;
+
+    ctx.session.frontText = null;
+    ctx.session.backText = null;
+    ctx.session.frontImageId = null;
+    ctx.session.backImageId = null;
+
+    await safeCall(
+      ctx.reply("Введите текст FRONT для нового вопроса:"),
+      "test.addQuestionExisting.askFront"
+    );
+  });
+
   // ==========================
   // УДАЛЕНИЕ ТЕСТА (Шаг 1 — вопрос пользователю)
   // ==========================
@@ -547,6 +575,22 @@ export function setupMaterials(bot) {
   //     };
   //   }
 
+  //   function questionKeyboard() {
+  //     return {
+  //       reply_markup: {
+  //         inline_keyboard: [
+  //           [
+  //             { text: "⬅️", callback_data: "test_prev" },
+  //             { text: "➡️", callback_data: "test_next" },
+  //           ],
+  //           [{ text: "🔄 Показать больше", callback_data: "test_flip" }],
+  //           [{ text: "🗑 Удалить вопрос", callback_data: "test_delete_question" }],
+  //           [{ text: "↩️ Назад", callback_data: "test_back" }],
+  //         ],
+  //       },
+  //     };
+  //   }
+
   function questionKeyboard() {
     return {
       reply_markup: {
@@ -556,6 +600,12 @@ export function setupMaterials(bot) {
             { text: "➡️", callback_data: "test_next" },
           ],
           [{ text: "🔄 Показать больше", callback_data: "test_flip" }],
+          [
+            {
+              text: "➕ Добавить вопрос к тесту",
+              callback_data: "test_add_question",
+            },
+          ],
           [{ text: "🗑 Удалить вопрос", callback_data: "test_delete_question" }],
           [{ text: "↩️ Назад", callback_data: "test_back" }],
         ],
