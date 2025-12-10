@@ -9,14 +9,10 @@ const materialsMenu = Markup.inlineKeyboard([
 ]);
 
 export function setupMaterials(bot) {
-  // Utility
   const ensureSession = (ctx) => {
     if (!ctx.session) ctx.session = {};
   };
 
-  // ==========================
-  // Открытие раздела материалов
-  // ==========================
   bot.action("admin_materials", async (ctx) => {
     ensureSession(ctx);
     await safeCall(ctx.answerCbQuery(), "materials.open");
@@ -211,8 +207,15 @@ export function setupMaterials(bot) {
       );
     }
 
+    // const keyboard = tests.map((t) => [
+    //   { text: t.title, callback_data: `test_open_${t.id}` },
+    // ]);
+
+    // keyboard.push([{ text: "Назад", callback_data: "admin_materials" }]);
+
     const keyboard = tests.map((t) => [
       { text: t.title, callback_data: `test_open_${t.id}` },
+      { text: "🗑 Удалить", callback_data: `test_delete_${t.id}` },
     ]);
 
     keyboard.push([{ text: "Назад", callback_data: "admin_materials" }]);
@@ -343,6 +346,78 @@ export function setupMaterials(bot) {
     }
   });
 
+  // ==========================
+  // УДАЛЕНИЕ ВОПРОСА
+  // ==========================
+  bot.action("test_delete_question", async (ctx) => {
+    ensureSession(ctx);
+    await safeCall(ctx.answerCbQuery(), "question.delete.ask");
+
+    await safeCall(
+      ctx.editMessageReplyMarkup({
+        inline_keyboard: [
+          [
+            {
+              text: "❌ Да, удалить вопрос",
+              callback_data: "test_delete_question_confirm",
+            },
+          ],
+          [{ text: "Отмена", callback_data: "test_flip" }],
+        ],
+      }),
+      "question.delete.confirmAsk"
+    );
+  });
+
+  bot.action("test_delete_question_confirm", async (ctx) => {
+    ensureSession(ctx);
+    await safeCall(ctx.answerCbQuery(), "question.delete.confirm");
+
+    const state = ctx.session.currentTest;
+    if (!state) return;
+
+    const { testId, index } = state;
+
+    const q = db
+      .prepare(
+        "SELECT id FROM test_questions WHERE testId = ? LIMIT 1 OFFSET ?"
+      )
+      .get(testId, index);
+
+    if (!q) return;
+
+    db.prepare("DELETE FROM test_questions WHERE id = ?").run(q.id);
+
+    const remaining = db
+      .prepare("SELECT COUNT(*) AS c FROM test_questions WHERE testId = ?")
+      .get(testId).c;
+
+    // если вопросов не осталось → выходим к списку тестов
+    if (remaining === 0) {
+      delete ctx.session.currentTest;
+
+      const tests = db.prepare("SELECT * FROM tests").all();
+      const keyboard = tests.map((t) => [
+        { text: t.title, callback_data: `test_open_${t.id}` },
+      ]);
+      keyboard.push([{ text: "Назад", callback_data: "admin_materials" }]);
+
+      await safeCall(
+        ctx.editMessageText("Все вопросы удалены. Выберите тест:", {
+          reply_markup: { inline_keyboard: keyboard },
+        }),
+        "question.delete.emptyBack"
+      );
+
+      return;
+    }
+
+    // корректируем индекс
+    if (index >= remaining) state.index = remaining - 1;
+
+    await showQuestion(ctx);
+  });
+
   bot.action("test_back", async (ctx) => {
     ensureSession(ctx);
     await safeCall(ctx.answerCbQuery(), "test.back");
@@ -370,6 +445,64 @@ export function setupMaterials(bot) {
       "test.back.showList"
     );
   });
+
+  // ==========================
+  // УДАЛЕНИЕ ТЕСТА (Шаг 1 — вопрос пользователю)
+  // ==========================
+  bot.action(/^test_delete_(\d+)$/, async (ctx) => {
+    ensureSession(ctx);
+    await safeCall(ctx.answerCbQuery(), "test.delete.ask");
+
+    const testId = Number(ctx.match[1]);
+
+    await safeCall(
+      ctx.editMessageReplyMarkup({
+        inline_keyboard: [
+          [
+            {
+              text: "❌ Да, удалить тест",
+              callback_data: `test_delete_confirm_${testId}`,
+            },
+          ],
+          [{ text: "Отмена", callback_data: "admin_list_tests" }],
+        ],
+      }),
+      "test.delete.askButtons"
+    );
+  });
+
+  // ==========================
+  // УДАЛЕНИЕ ТЕСТА (Шаг 2 — подтверждение + удаление)
+  // ==========================
+  bot.action(/^test_delete_confirm_(\d+)$/, async (ctx) => {
+    ensureSession(ctx);
+    await safeCall(ctx.answerCbQuery(), "test.delete.confirm");
+
+    const testId = Number(ctx.match[1]);
+
+    // удаляем вопросы
+    db.prepare("DELETE FROM test_questions WHERE testId = ?").run(testId);
+
+    // удаляем сам тест
+    db.prepare("DELETE FROM tests WHERE id = ?").run(testId);
+
+    // получаем обновлённый список тестов
+    const tests = db.prepare("SELECT * FROM tests").all();
+
+    const keyboard = tests.map((t) => [
+      { text: t.title, callback_data: `test_open_${t.id}` },
+      { text: "🗑 Удалить", callback_data: `test_delete_${t.id}` },
+    ]);
+    keyboard.push([{ text: "Назад", callback_data: "admin_materials" }]);
+
+    await safeCall(
+      ctx.editMessageText("Тест удалён. Выберите тест:", {
+        reply_markup: { inline_keyboard: keyboard },
+      }),
+      "test.delete.finish"
+    );
+  });
+
   // ========================
   // HELPERS
   // ========================
@@ -399,6 +532,21 @@ export function setupMaterials(bot) {
     );
   }
 
+  //   function questionKeyboard() {
+  //     return {
+  //       reply_markup: {
+  //         inline_keyboard: [
+  //           [
+  //             { text: "⬅️", callback_data: "test_prev" },
+  //             { text: "➡️", callback_data: "test_next" },
+  //           ],
+  //           [{ text: "🔄 Показать больше", callback_data: "test_flip" }],
+  //           [{ text: "↩️ Назад", callback_data: "test_back" }],
+  //         ],
+  //       },
+  //     };
+  //   }
+
   function questionKeyboard() {
     return {
       reply_markup: {
@@ -408,6 +556,7 @@ export function setupMaterials(bot) {
             { text: "➡️", callback_data: "test_next" },
           ],
           [{ text: "🔄 Показать больше", callback_data: "test_flip" }],
+          [{ text: "🗑 Удалить вопрос", callback_data: "test_delete_question" }],
           [{ text: "↩️ Назад", callback_data: "test_back" }],
         ],
       },
