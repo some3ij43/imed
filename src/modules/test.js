@@ -36,7 +36,7 @@ export function setupMaterials(bot) {
     ensureSession(ctx);
 
     ctx.session = {
-      creatingTest: true
+      creatingTest: true,
     };
 
     await safeCall(ctx.answerCbQuery(), "materials.create.start");
@@ -58,9 +58,9 @@ export function setupMaterials(bot) {
     if (ctx.session.creatingTest) {
       const title = msg;
 
-      const result = db.prepare(
-        "INSERT INTO tests (title) VALUES (?)"
-      ).run(title);
+      const result = db
+        .prepare("INSERT INTO tests (title) VALUES (?)")
+        .run(title);
 
       ctx.session.creatingTest = false;
       ctx.session.testId = result.lastInsertRowid;
@@ -70,7 +70,12 @@ export function setupMaterials(bot) {
           parse_mode: "HTML",
           reply_markup: {
             inline_keyboard: [
-              [{ text: "Добавить вопрос ➕", callback_data: "admin_add_question" }],
+              [
+                {
+                  text: "Добавить вопрос ➕",
+                  callback_data: "admin_add_question",
+                },
+              ],
               [{ text: "Готово", callback_data: "admin_materials" }],
             ],
           },
@@ -252,9 +257,9 @@ export function setupMaterials(bot) {
     const s = ctx.session.currentTest;
     if (!s) return;
 
-    const qty = db.prepare(
-      "SELECT COUNT(*) AS c FROM test_questions WHERE testId = ?"
-    ).get(s.testId).c;
+    const qty = db
+      .prepare("SELECT COUNT(*) AS c FROM test_questions WHERE testId = ?")
+      .get(s.testId).c;
 
     if (s.index < qty - 1) s.index++;
     return showQuestion(ctx);
@@ -270,40 +275,101 @@ export function setupMaterials(bot) {
     return showQuestion(ctx);
   });
 
-  // flip
   bot.action("test_flip", async (ctx) => {
     ensureSession(ctx);
+    await safeCall(ctx.answerCbQuery(), "test.flip");
 
-    const { testId, index } = ctx.session.currentTest;
+    const state = ctx.session.currentTest;
+    if (!state) return;
 
-    const q = db.prepare(
-      "SELECT * FROM test_questions WHERE testId = ? LIMIT 1 OFFSET ?"
-    ).get(testId, index);
+    const { testId, index } = state;
+
+    const q = db
+      .prepare("SELECT * FROM test_questions WHERE testId = ? LIMIT 1 OFFSET ?")
+      .get(testId, index);
 
     const kb = questionKeyboard();
 
-    if (q.backImageId) {
-      await safeCall(
-        ctx.editMessageMedia(
-          {
-            type: "photo",
-            media: q.backImageId,
-            caption: `🔄 Обратная сторона\n\n${q.backText}`,
-          },
-          kb
-        ),
-        "test.flip.image"
-      );
-      return;
-    }
+    const showingBack = !!state.showingBack;
 
-    await safeCall(
-      ctx.editMessageText(`🔄 Обратная сторона:\n\n${q.backText}`, kb),
-      "test.flip.text"
-    );
+    if (!showingBack) {
+      // сейчас была FRONT, показываем BACK
+      if (q.backImageId) {
+        await safeCall(
+          ctx.editMessageMedia(
+            {
+              type: "photo",
+              media: q.backImageId,
+              caption: `🔄 Обратная сторона\n\n${q.backText || "—"}`,
+            },
+            kb
+          ),
+          "test.flip.toBack.image"
+        );
+      } else {
+        await safeCall(
+          ctx.editMessageText(
+            `🔄 Обратная сторона:\n\n${q.backText || "—"}`,
+            kb
+          ),
+          "test.flip.toBack.text"
+        );
+      }
+      state.showingBack = true;
+    } else {
+      // сейчас BACK, возвращаем FRONT
+      if (q.frontImageId) {
+        await safeCall(
+          ctx.editMessageMedia(
+            {
+              type: "photo",
+              media: q.frontImageId,
+              caption: `❓ Вопрос ${index + 1}\n\n${q.frontText || "—"}`,
+            },
+            kb
+          ),
+          "test.flip.toFront.image"
+        );
+      } else {
+        await safeCall(
+          ctx.editMessageText(
+            `❓ Вопрос ${index + 1}\n\n${q.frontText || "—"}`,
+            kb
+          ),
+          "test.flip.toFront.text"
+        );
+      }
+      state.showingBack = false;
+    }
   });
 
+  bot.action("test_back", async (ctx) => {
+    ensureSession(ctx);
+    await safeCall(ctx.answerCbQuery(), "test.back");
 
+    ctx.session.currentTest = null;
+
+    const tests = db.prepare("SELECT * FROM tests").all();
+
+    const keyboard = tests.map((t) => [
+      { text: t.title, callback_data: `test_open_${t.id}` },
+    ]);
+    keyboard.push([{ text: "Назад", callback_data: "admin_materials" }]);
+
+    try {
+      await ctx.deleteMessage();
+    } catch (e) {
+      console.log("deleteMessage failed, falling back to edit", e.description);
+    }
+
+    // 2️⃣ отправляем новое сообщение
+    await safeCall(
+      ctx.telegram.sendMessage(ctx.chat.id, "Выберите тест:", {
+        reply_markup: { inline_keyboard: keyboard },
+      }),
+      "test.back.showList"
+    );
+  });
   // ========================
   // HELPERS
   // ========================
@@ -342,7 +408,7 @@ export function setupMaterials(bot) {
             { text: "➡️", callback_data: "test_next" },
           ],
           [{ text: "🔄 Показать больше", callback_data: "test_flip" }],
-          [{ text: "↩️ Назад", callback_data: "admin_list_tests" }],
+          [{ text: "↩️ Назад", callback_data: "test_back" }],
         ],
       },
     };
@@ -353,9 +419,9 @@ export function setupMaterials(bot) {
 
     const { testId, index } = ctx.session.currentTest;
 
-    const q = db.prepare(
-      "SELECT * FROM test_questions WHERE testId = ? LIMIT 1 OFFSET ?"
-    ).get(testId, index);
+    const q = db
+      .prepare("SELECT * FROM test_questions WHERE testId = ? LIMIT 1 OFFSET ?")
+      .get(testId, index);
 
     const kb = questionKeyboard();
 
@@ -377,10 +443,7 @@ export function setupMaterials(bot) {
 
     // иначе обычный текст
     await safeCall(
-      ctx.editMessageText(
-        `❓ Вопрос ${index + 1}\n\n${q.frontText}`,
-        kb
-      ),
+      ctx.editMessageText(`❓ Вопрос ${index + 1}\n\n${q.frontText}`, kb),
       "test.show.text"
     );
   }
