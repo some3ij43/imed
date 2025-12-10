@@ -137,9 +137,12 @@ export function setupAdmin(bot) {
     );
   });
 
-  bot.on("text", (ctx) => {
+  bot.on("text", (ctx, next) => {
     const key = ctx.session?.adminEditingKey;
-    if (!key) return;
+
+    if (!key) {
+      return next();
+    }
 
     const config = loadConfig();
     const text = ctx.message.text;
@@ -164,4 +167,32 @@ export function setupAdmin(bot) {
     safeCall(ctx.reply("Значение обновлено.", adminMenu), "admin text reply");
     ctx.session = null;
   });
+
+  // bot.on("text", (ctx) => {
+  //   const key = ctx.session?.adminEditingKey;
+  //   if (!key) return;
+
+  //   const config = loadConfig();
+  //   const text = ctx.message.text;
+
+  //   if (key === "admins") {
+  //     const ids = text
+  //       .split(",")
+  //       .map((x) => Number(x.trim()))
+  //       .filter(Boolean);
+  //     config.admins = ids;
+  //   } else if (
+  //     key === "trialDurationDays" ||
+  //     key === "subscriptionDurationDays"
+  //   ) {
+  //     config[key] = Number(text);
+  //   } else {
+  //     config[key] = text;
+  //   }
+
+  //   saveConfig(config);
+
+  //   safeCall(ctx.reply("Значение обновлено.", adminMenu), "admin text reply");
+  //   ctx.session = null;
+  // });
 }

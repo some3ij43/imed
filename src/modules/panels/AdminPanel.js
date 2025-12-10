@@ -10,4 +10,5 @@ export const adminMenu = Markup.inlineKeyboard([
   [Markup.button.callback("Описание подписки", "admin_edit_description")],
   [Markup.button.callback("Администраторы", "admin_edit_admins")],
   [Markup.button.callback("Закрыть", "admin_close")],
+  [Markup.button.callback("Материалы 📚", "admin_materials")],
 ]);

@@ -7,6 +7,7 @@ import { setupDemo } from "./src/modules/demo.js";
 import { setupAdmin } from "./src/modules/admin.js";
 import { session } from "telegraf";
 import { safeCall } from "./src/utils/safeCall.js";
+import { setupMaterials } from "./src/modules/test.js";
 
 dotenv.config();
 
@@ -24,6 +25,7 @@ setupMain(bot);
 setupSubscription(bot);
 setupDemo(bot);
 setupAdmin(bot);
+setupMaterials(bot)
 
 bot.command(
   "secret",
