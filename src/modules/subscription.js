@@ -2,6 +2,7 @@ import { Markup } from "telegraf";
 import db from "../db/db.js";
 import { safeCall } from "../utils/safeCall.js";
 import { loadConfig } from "../utils/config.js";
+import { mainMenuPanel } from "./panels/MainMenuPanel.js";
 
 const PROVIDER_TOKEN = process.env.PAYMENTS_PROVIDER_TOKEN; // ЮKassa
 
@@ -209,16 +210,7 @@ export function setupSubscription(bot) {
     // главное меню новым сообщением
     await safeCall(
       ctx.telegram.sendMessage(ctx.chat.id, "Что тебя интересует?", {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: "Демо-версия 📚", callback_data: "demo" }],
-            [{ text: "Подписка ⚜️", callback_data: "open_subscription" }],
-            [{ text: "Отзывы ☁️", callback_data: "reviews" }],
-            [{ text: "Тех. Поддержка ⚒️", callback_data: "support" }],
-            [{ text: "Telegram-канал 💅", callback_data: "channel" }],
-            [Markup.button.callback("Тесты", "tests")],
-          ],
-        },
+        reply_markup: mainMenuPanel.reply_markup
       }),
       "payment.success.mainMenu"
     );
@@ -250,16 +242,7 @@ export function setupSubscription(bot) {
 
     await safeCall(
       ctx.telegram.sendMessage(ctx.chat.id, "Что тебя интересует?", {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: "Демо-версия 📚", callback_data: "demo" }],
-            [{ text: "Подписка ⚜️", callback_data: "open_subscription" }],
-            [{ text: "Отзывы ☁️", callback_data: "reviews" }],
-            [{ text: "Тех. Поддержка ⚒️", callback_data: "support" }],
-            [{ text: "Telegram-канал 💅", callback_data: "channel" }],
-            [Markup.button.callback("Тесты", "tests")],
-          ],
-        },
+        reply_markup: mainMenuPanel.reply_markup
       }),
       "sub.back.menu"
     );

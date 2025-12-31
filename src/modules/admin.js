@@ -1,6 +1,7 @@
 import { loadConfig, saveConfig } from "../utils/config.js";
 import { adminMenu } from "./panels/AdminPanel.js";
 import { safeCall } from "../utils/safeCall.js";
+import { mainMenuPanel } from "./panels/MainMenuPanel.js";
 
 export function setupAdmin(bot) {
   bot.command("root", async (ctx) => {
@@ -123,15 +124,15 @@ export function setupAdmin(bot) {
 
     await safeCall(
       ctx.telegram.sendMessage(ctx.chat.id, "Что тебя интересует?", {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: "Демо-версия 📚", callback_data: "demo" }],
-            [{ text: "Подписка ⚜️", callback_data: "open_subscription" }],
-            [{ text: "Отзывы ☁️", callback_data: "reviews" }],
-            [{ text: "Тех. Поддержка ⚒️", callback_data: "support" }],
-            [{ text: "Telegram-канал 💅", callback_data: "channel" }],
-          ],
-        },
+        reply_markup: mainMenuPanel.reply_markup
+          // inline_keyboard: [
+          //   [{ text: "Демо-версия 📚", callback_data: "demo" }],
+          //   [{ text: "Подписка ⚜️", callback_data: "open_subscription" }],
+          //   [{ text: "Отзывы ☁️", callback_data: "reviews" }],
+          //   [{ text: "Тех. Поддержка ⚒️", callback_data: "support" }],
+          //   [{ text: "Telegram-канал 💅", callback_data: "channel" }],
+          // ],
+        
       }),
       "admin_close send main menu"
     );
