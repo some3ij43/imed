@@ -75,30 +75,30 @@ export function setupAuth(bot) {
 
 
   // отладочные команды
-  bot.command("revoke", (ctx) => {
-    const userId = ctx.from.id;
+  // bot.command("revoke", (ctx) => {
+  //   const userId = ctx.from.id;
 
-    db.prepare(
-      `
-    DELETE FROM users WHERE id = ?
-  `
-    ).run(userId);
+  //   db.prepare(
+  //     `
+  //   DELETE FROM users WHERE id = ?
+  // `
+  //   ).run(userId);
 
-    ctx.reply("♻️ Подписка и статус trial полностью сброшены.");
-  });
+  //   ctx.reply("♻️ Подписка и статус trial полностью сброшены.");
+  // });
 
-  bot.command("setupExpiredStatus", (ctx) => {
-  const userId = ctx.from.id;
+//   bot.command("setupExpiredStatus", (ctx) => {
+//   const userId = ctx.from.id;
 
-  db.prepare(`
-    INSERT INTO users (id, expiresAt, trialUsed)
-    VALUES (?, ?, 1)
-    ON CONFLICT(id)
-    DO UPDATE SET
-      expiresAt = ?,
-      trialUsed = 1
-  `).run(userId, Date.now() - 1000, Date.now() - 1000);
+//   db.prepare(`
+//     INSERT INTO users (id, expiresAt, trialUsed)
+//     VALUES (?, ?, 1)
+//     ON CONFLICT(id)
+//     DO UPDATE SET
+//       expiresAt = ?,
+//       trialUsed = 1
+//   `).run(userId, Date.now() - 1000, Date.now() - 1000);
 
-  ctx.reply("🧪 Trial помечен как использованный и истёкший.");
-});
+//   ctx.reply("🧪 Trial помечен как использованный и истёкший.");
+// });
 }

@@ -471,9 +471,9 @@ export function setupMaterials(bot) {
     ctx.session.addingQuestion = true;
 
     ctx.session.expectingFrontText = true;
-    ctx.session.expectingFrontImage = false; // станет true после фронт-текста
-    ctx.session.expectingBackText = false; // станет true после фронт-изображения
-    ctx.session.expectingBackImage = false; // станет true после бэк-текста
+    ctx.session.expectingFrontImage = false;
+    ctx.session.expectingBackText = false; 
+    ctx.session.expectingBackImage = false;
 
     ctx.session.frontText = null;
     ctx.session.backText = null;
