@@ -47,6 +47,8 @@ export function setupMaterials(bot) {
   // ВВОД ТЕКСТА / КАРТИНОК
   // ==========================
   bot.on("text", async (ctx) => {
+    console.log("SESSION:", ctx.session);
+
     ensureSession(ctx);
     const msg = ctx.message.text;
 
@@ -84,20 +86,6 @@ export function setupMaterials(bot) {
 
     // === Добавление вопроса ===
     if (ctx.session.addingQuestion) {
-      // FRONT TEXT
-      //   if (ctx.session.expectingFrontText) {
-      //     ctx.session.frontText = msg;
-      //     ctx.session.expectingFrontText = false;
-      //     ctx.session.expectingFrontImage = true;
-
-      //     await safeCall(
-      //       ctx.reply("Отправьте изображение для FRONT или /skip"),
-      //       "materials.question.askFrontImage"
-      //     );
-
-      //     return;
-      //   }
-      // FRONT TEXT
       if (ctx.session.addingQuestion && ctx.session.expectingFrontText) {
         ctx.session.frontText = msg;
 

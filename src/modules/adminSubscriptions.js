@@ -111,93 +111,117 @@ export function setupAdminSubscriptions(bot) {
   });
 
   /* ==========================
-     TEXT HANDLER (CREATE + EDIT)
-  ========================== */
-  bot.on("text", async (ctx) => {
-    ensureSession(ctx);
+   TEXT HANDLER (CREATE + EDIT)
+========================== */
+bot.on("text", async (ctx, next) => {
+  ensureSession(ctx);
 
-    /* ===== EDIT EXISTING ===== */
-    const edit = ctx.session.editingSubscription;
-    if (edit) {
-      const value = ctx.message.text;
-      const { id, field } = edit;
+  const edit = ctx.session.editingSubscription;
+  const create = ctx.session.creatingSubscription;
 
-      if (field === "title") {
-        db.prepare(`UPDATE subscriptions SET title = ? WHERE id = ?`).run(
-          value,
-          id
-        );
+  if (!edit && !create) return next();
+
+  const value = ctx.message.text?.trim() ?? "";
+
+  /* ===== EDIT EXISTING ===== */
+  if (edit) {
+    const { id, field } = edit;
+
+    if (field === "title") {
+      if (!value) {
+        await safeCall(ctx.reply("❗ Название не может быть пустым."), "admin.subs.edit.title.empty");
+        return;
       }
+      db.prepare(`UPDATE subscriptions SET title = ? WHERE id = ?`).run(value, id);
+    }
 
-      if (field === "price") {
-        db.prepare(`UPDATE subscriptions SET price = ? WHERE id = ?`).run(
-          Number(value) * 100,
-          id
-        );
+    if (field === "price") {
+      const num = Number(value.replace(",", "."));
+      if (!Number.isFinite(num) || num <= 0) {
+        await safeCall(ctx.reply("❗ Введите корректную цену (например 599)."), "admin.subs.edit.price.invalid");
+        return;
       }
+      db.prepare(`UPDATE subscriptions SET price = ? WHERE id = ?`).run(Math.round(num * 100), id);
+    }
 
-      if (field === "duration") {
-        db.prepare(
-          `UPDATE subscriptions SET durationDays = ? WHERE id = ?`
-        ).run(Number(value), id);
+    if (field === "duration") {
+      const days = Number(value);
+      if (!Number.isFinite(days) || days <= 0) {
+        await safeCall(ctx.reply("❗ Введите корректный срок в днях (например 30)."), "admin.subs.edit.duration.invalid");
+        return;
       }
+      db.prepare(`UPDATE subscriptions SET durationDays = ? WHERE id = ?`).run(Math.round(days), id);
+    }
 
-      ctx.session.editingSubscription = null;
+    ctx.session.editingSubscription = null;
 
-      await safeCall(ctx.reply("✅ Подписка обновлена."), "admin.subs.updated");
+    await safeCall(ctx.reply("✅ Подписка обновлена."), "admin.subs.updated");
 
-      await bot.handleUpdate({
-        callback_query: {
-          data: `admin_subscription_open_${id}`,
-          message: ctx.message,
-        },
-      });
+    await bot.handleUpdate({
+      callback_query: {
+        data: `admin_subscription_open_${id}`,
+        message: ctx.message,
+      },
+    });
 
+    return;
+  }
+
+  /* ===== CREATE NEW ===== */
+  const s = create;
+  if (!s) return next();
+
+  if (s.step === "title") {
+    if (!value) {
+      await safeCall(ctx.reply("❗ Название не может быть пустым. Введите название подписки:"), "admin.subs.create.title.empty");
       return;
     }
+    s.data.title = value;
+    s.step = "price";
+    await safeCall(ctx.reply("Введите цену (в рублях):"), "admin.subs.price");
+    return;
+  }
 
-    /* ===== CREATE NEW ===== */
-    const s = ctx.session.creatingSubscription;
-    if (!s) return;
-
-    const text = ctx.message.text;
-
-    if (s.step === "title") {
-      s.data.title = text;
-      s.step = "price";
-      await safeCall(ctx.reply("Введите цену (в рублях):"), "admin.subs.price");
+  if (s.step === "price") {
+    const num = Number(value.replace(",", "."));
+    if (!Number.isFinite(num) || num <= 0) {
+      await safeCall(ctx.reply("❗ Введите корректную цену (например 599)."), "admin.subs.create.price.invalid");
       return;
     }
+    s.data.price = Math.round(num * 100);
+    s.step = "duration";
+    await safeCall(ctx.reply("Введите срок действия (в днях):"), "admin.subs.duration");
+    return;
+  }
 
-    if (s.step === "price") {
-      s.data.price = Number(text) * 100;
-      s.step = "duration";
-      await safeCall(
-        ctx.reply("Введите срок действия (в днях):"),
-        "admin.subs.duration"
-      );
+  if (s.step === "duration") {
+    const days = Number(value);
+    if (!Number.isFinite(days) || days <= 0) {
+      await safeCall(ctx.reply("❗ Введите корректный срок в днях (например 30)."), "admin.subs.create.duration.invalid");
       return;
     }
+    s.data.durationDays = Math.round(days);
 
-    if (s.step === "duration") {
-      s.data.durationDays = Number(text);
+    db.prepare(
+      `INSERT INTO subscriptions (title, price, durationDays) VALUES (?, ?, ?)`
+    ).run(s.data.title, s.data.price, s.data.durationDays);
 
-      db.prepare(
-        `INSERT INTO subscriptions (title, price, durationDays) VALUES (?, ?, ?)`
-      ).run(s.data.title, s.data.price, s.data.durationDays);
+    ctx.session.creatingSubscription = null;
 
-      ctx.session.creatingSubscription = null;
+    await safeCall(ctx.reply("✅ Подписка создана."), "admin.subs.created");
 
-      await safeCall(ctx.reply("✅ Подписка создана."), "admin.subs.created");
+    await bot.handleUpdate({
+      callback_query: {
+        data: "admin_subscriptions_edit",
+        message: ctx.message,
+      },
+    });
 
-      await bot.handleUpdate({
-        callback_query: {
-          data: "admin_subscriptions_edit",
-          message: ctx.message,
-        },
-      });
-    }
-  });
+    return;
+  }
+
+  return next();
+});
 
   /* ==========================
      VIEW SUBSCRIPTION
